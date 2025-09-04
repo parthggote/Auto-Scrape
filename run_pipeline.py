@@ -3,6 +3,18 @@ import json
 import logging
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from a .env file if one exists.
+# This should be one of the first things to run.
+found_dotenv = load_dotenv()
+
+# We need to set up basic logging right away to see the debug message.
+# The main logging setup will happen later in main().
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.info(f"Attempted to load .env file. Found and loaded: {found_dotenv}")
+
 
 # The following imports will be created in the next step.
 # For now, this defines the required interface for our modules.

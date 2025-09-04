@@ -19,30 +19,38 @@ def group_fields(extracted_json_path: str, output_path: str):
         with open(extracted_json_path, 'r') as f:
             extracted_fields = json.load(f)
 
-        # In a real implementation, this prompt would be carefully engineered.
+        # This prompt is engineered for modern LLMs to group fields effectively.
         prompt = f"""
-        You are an insurance data architect. Group the following extracted fields
-        into logical blocks:
-        - Applicant Details
-        - Pet Information
-        - Health History
-        - Coverage Selection
-        - Payment Information
-        - Other/Region-Specific
+        You are an expert insurance data architect. Your task is to group the following list of extracted form fields into logical categories.
 
-        Fields to group:
+        Use the following categories:
+        - "Applicant Details"
+        - "Pet Information"
+        - "Health History"
+        - "Coverage Selection"
+        - "Payment Information"
+        - "Other"
+
+        Here is the list of fields to categorize:
         {json.dumps(extracted_fields, indent=2)}
 
-        Return a single JSON object where keys are the group names.
+        Return a single JSON object where each key is a category name and the value is a list of the fields belonging to that category. Do not create new categories.
         """
 
-        # Call the mock LLM client for the grouping task
+        # Call the LLM client for the grouping task
         logging.info("Calling LLM for field grouping...")
-        llm_response_str = llm_client.call_model(prompt, task='grouping')
+        llm_response_str = llm_client.call_llm(prompt, task='grouping')
 
-        # The response is already a JSON string, so we just write it.
-        with open(output_path, 'w') as f:
-            f.write(llm_response_str)
+        # The response from the new client is a JSON string.
+        # We can do a quick validation and pretty-print it before saving.
+        try:
+            parsed_json = json.loads(llm_response_str)
+            with open(output_path, 'w') as f:
+                json.dump(parsed_json, f, indent=2)
+        except json.JSONDecodeError:
+            logging.error("LLM response was not valid JSON. Saving raw response.")
+            with open(output_path, 'w') as f:
+                f.write(llm_response_str)
 
         logging.info(f"Successfully grouped fields and saved to '{output_path}'.")
 

@@ -21,3 +21,5 @@ lxml # For both XML parsing and exporting
 # Schema Validation
 pydantic
 jsonschema
+google-generativeai
+python-dotenv

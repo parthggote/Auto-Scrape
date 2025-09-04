@@ -1,69 +1,101 @@
-import json
+import os
 import logging
+import json
+import openai
+import google.generativeai as genai
 
 class LLMClient:
     """
-    An abstraction layer for interacting with a Large Language Model (LLM).
-
-    This client can be configured to use different backends like OpenAI, Ollama, etc.
-    In this stub implementation, it does not make real API calls. Instead, it
-    returns mock, hardcoded data to simulate the LLM's response for different tasks.
+    An abstraction layer for interacting with Large Language Models (LLMs).
+    It initializes clients for OpenAI and Google Gemini based on environment variables
+    and implements a fallback mechanism from OpenAI to Gemini.
     """
-    def __init__(self, config=None):
+    def __init__(self):
         """
-        Initializes the LLM client.
+        Initializes the LLM clients.
+        It looks for 'OPENAI_API_KEY' and 'GOOGLE_API_KEY' in the environment.
+        """
+        self.openai_client = None
+        self.gemini_client = None
 
-        Args:
-            config (dict, optional): Configuration for the LLM backend.
-                                     For a real implementation, this would include
-                                     API keys, model names, etc.
-        """
-        self.config = config
-        logging.info("LLMClient initialized (mock mode).")
+        # Initialize OpenAI client
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            self.openai_client = openai.OpenAI(api_key=openai_api_key)
+            logging.info("OpenAI client initialized successfully.")
+        else:
+            logging.warning("OPENAI_API_KEY not found. OpenAI client not initialized.")
 
-    def call_model(self, prompt: str, task: str) -> str:
+        # Initialize Gemini client
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if google_api_key:
+            genai.configure(api_key=google_api_key)
+            self.gemini_client = genai.GenerativeModel('gemini-1.5-flash-latest')
+            logging.info("Google Gemini client initialized successfully.")
+        else:
+            logging.warning("GOOGLE_API_KEY not found. Gemini client not initialized.")
+
+        if not self.openai_client and not self.gemini_client:
+            logging.error("No LLM clients could be initialized. Please set OPENAI_API_KEY or GOOGLE_API_KEY.")
+
+    def call_llm(self, prompt: str, task: str) -> str:
         """
-        Simulates a call to the LLM with a given prompt and task.
+        Calls the LLM to perform a task, with a fallback from OpenAI to Gemini.
 
         Args:
             prompt (str): The full prompt to send to the LLM.
-            task (str): The type of task ('extraction' or 'grouping').
-                        This determines which mock response to return.
+            task (str): The type of task ('extraction' or 'grouping'). This helps tailor the call.
 
         Returns:
-            str: A JSON string simulating the LLM's output.
+            str: A JSON string representing the LLM's output.
+
+        Raises:
+            RuntimeError: If both OpenAI and Gemini clients fail or are not available.
         """
-        logging.info(f"Simulating LLM call for task: '{task}'")
+        # --- Primary: Try OpenAI ---
+        if self.openai_client:
+            try:
+                logging.info("Attempting to call OpenAI API...")
+                # Note: Using gpt-4o-mini as a fast and capable default.
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                response_content = response.choices[0].message.content
+                logging.info("Successfully received response from OpenAI.")
+                # Validate that the response is valid JSON
+                json.loads(response_content)
+                return response_content
+            except Exception as e:
+                logging.warning(f"OpenAI API call failed. Error: {e}. Attempting fallback to Gemini.")
 
-        if task == 'extraction':
-            # Mock response for the 'extractor' module.
-            mock_response = [
-                {"field_name": "Pet Name", "description": "The name of the insured pet."},
-                {"field_name": "Owner Full Name", "description": "Full legal name of the policyholder."},
-                {"field_name": "Policy Number", "description": "The unique identifier for the insurance policy."},
-                {"field_name": "Date of Birth", "description": "The pet's date of birth."},
-                {"field_name": "Claim Amount", "description": "The total amount being claimed."},
-            ]
-        elif task == 'grouping':
-            # Mock response for the 'grouper' module.
-            mock_response = {
-                "Applicant Details": [
-                    {"field_name": "Owner Full Name", "description": "Full legal name of the policyholder."}
-                ],
-                "Pet Information": [
-                    {"field_name": "Pet Name", "description": "The name of the insured pet."},
-                    {"field_name": "Date of Birth", "description": "The pet's date of birth."}
-                ],
-                "Coverage Selection": [
-                    {"field_name": "Policy Number", "description": "The unique identifier for the insurance policy."},
-                    {"field_name": "Claim Amount", "description": "The total amount being claimed."}
-                ],
-                "Other": []
-            }
-        else:
-            mock_response = {"error": "Unknown task type"}
+        # --- Fallback: Try Gemini ---
+        if self.gemini_client:
+            try:
+                logging.info("Attempting to call Google Gemini API...")
+                # Gemini requires the prompt to explicitly ask for JSON output.
+                gemini_prompt = f"{prompt}\n\nPlease provide the output in a valid JSON format."
+                response = self.gemini_client.generate_content(gemini_prompt)
 
-        return json.dumps(mock_response, indent=2)
+                # The response text might be wrapped in markdown, so we need to clean it.
+                response_text = response.text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+
+                logging.info("Successfully received response from Gemini.")
+                # Validate that the cleaned response is valid JSON
+                json.loads(response_text)
+                return response_text
+            except Exception as e:
+                logging.error(f"Google Gemini API call also failed. Error: {e}")
+
+        raise RuntimeError("Both OpenAI and Gemini LLM calls failed.")
 
 # Global instance that can be imported by other modules
 llm_client = LLMClient()

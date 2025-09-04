@@ -19,26 +19,40 @@ def extract_fields(parsed_text_path: str, output_path: str):
         with open(parsed_text_path, 'r') as f:
             text_content = f.read()
 
-        # In a real implementation, this prompt would be carefully engineered.
+        # This prompt is engineered to be effective with modern LLMs.
         prompt = f"""
-        You are analyzing an insurance form.
-        Extract all data fields with field_name and description from the following text:
+        You are an expert data extraction assistant. Your task is to analyze the text from an insurance form below and extract all data entry fields.
+        For each field, provide a concise 'field_name' and a brief 'description'.
+        Return the result as a single JSON object where the key is "fields" and the value is a list of objects.
+
+        Example Format:
+        {{
+          "fields": [
+            {{"field_name": "Pet Name", "description": "The name of the insured pet"}},
+            {{"field_name": "Owner Address", "description": "The full address of the policyholder"}}
+          ]
+        }}
+
+        Analyze the following text:
         ---
         {text_content}
         ---
-        Return JSON like:
-        [
-          {{"field_name": "Pet Name", "description": "Name of insured pet"}},
-          {{"field_name": "Owner Address", "description": "Full address of policyholder"}}
-        ]
         """
 
-        # Call the mock LLM client for the extraction task
+        # Call the LLM client for the extraction task
         logging.info("Calling LLM for field extraction...")
-        llm_response_str = llm_client.call_model(prompt, task='extraction')
+        llm_response_str = llm_client.call_llm(prompt, task='extraction')
 
-        # The response is already a JSON string, so we just write it.
-        # In a real scenario, you might want to parse and validate it first.
+        # The response from the new client is a JSON string.
+        # We can do a quick validation and pretty-print it before saving.
+        try:
+            parsed_json = json.loads(llm_response_str)
+            with open(output_path, 'w') as f:
+                json.dump(parsed_json, f, indent=2)
+        except json.JSONDecodeError:
+            logging.error("LLM response was not valid JSON. Saving raw response.")
+            with open(output_path, 'w') as f:
+                f.write(llm_response_str)
         with open(output_path, 'w') as f:
             f.write(llm_response_str)
 
