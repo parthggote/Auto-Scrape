@@ -1,0 +1,23 @@
+# Web Scraping
+requests
+beautifulsoup4
+playwright
+
+# PDF Parsing
+pdfplumber
+PyPDF2
+pytesseract
+
+# AI/LLM Integration
+openai
+ollama
+langchain
+
+# Data Handling & Export
+pandas
+openpyxl
+lxml # For both XML parsing and exporting
+
+# Schema Validation
+pydantic
+jsonschema

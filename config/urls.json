@@ -1,0 +1,30 @@
+[
+  {
+    "region": "US",
+    "insurer": "PetPlan",
+    "form_name": "ClaimForm",
+    "url": "https://www.gopetplan.com/sample-claim-form.pdf",
+    "type": "pdf"
+  },
+  {
+    "region": "Europe",
+    "insurer": "Allianz",
+    "form_name": "ApplicationForm",
+    "url": "https://www.allianz.com/en/products/pet-insurance-application.html",
+    "type": "html"
+  },
+  {
+    "region": "APAC",
+    "insurer": "Pawtect",
+    "form_name": "VetClaimForm",
+    "url": "https://www.pawtect.com/au/claims/forms/vet-claim.pdf",
+    "type": "pdf"
+  },
+  {
+    "region": "SouthAmerica",
+    "insurer": "SeguroPet",
+    "form_name": "OnlineApplication",
+    "url": "https://www.seguropet.com/br/apply-now.html",
+    "type": "html"
+  }
+]
