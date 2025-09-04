@@ -31,14 +31,14 @@ def build_master_schema(grouped_files_dir: str, output_path: str):
         if not grouped_files:
             logging.warning(f"No grouped JSON files found in '{grouped_files_dir}'. Master schema will be empty.")
             # Still save the empty schema structure
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(master_schema, f, indent=2)
             return
 
         logging.info(f"Found {len(grouped_files)} grouped files to consolidate.")
 
         for grouped_file in grouped_files:
-            with open(grouped_file, 'r') as f:
+            with open(grouped_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
                 # In a real implementation, this merging logic would be much more

@@ -16,7 +16,8 @@ def extract_fields(parsed_text_path: str, output_path: str):
     logging.info(f"Reading parsed text from '{parsed_text_path}'...")
 
     try:
-        with open(parsed_text_path, 'r') as f:
+        # Explicitly open the file with UTF-8 encoding to prevent errors.
+        with open(parsed_text_path, 'r', encoding='utf-8') as f:
             text_content = f.read()
 
         # This prompt is engineered to be effective with modern LLMs.
@@ -47,14 +48,12 @@ def extract_fields(parsed_text_path: str, output_path: str):
         # We can do a quick validation and pretty-print it before saving.
         try:
             parsed_json = json.loads(llm_response_str)
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(parsed_json, f, indent=2)
         except json.JSONDecodeError:
             logging.error("LLM response was not valid JSON. Saving raw response.")
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(llm_response_str)
-        with open(output_path, 'w') as f:
-            f.write(llm_response_str)
 
         logging.info(f"Successfully extracted fields and saved to '{output_path}'.")
 

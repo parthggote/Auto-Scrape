@@ -38,7 +38,7 @@ def export_schema(master_schema_path: str, output_dir: str):
     logging.info(f"Reading master schema from '{master_schema_path}' for exporting.")
 
     try:
-        with open(master_schema_path, 'r') as f:
+        with open(master_schema_path, 'r', encoding='utf-8') as f:
             schema_data = json.load(f)
 
         output_dir_path = Path(output_dir)

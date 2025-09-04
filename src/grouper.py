@@ -16,7 +16,7 @@ def group_fields(extracted_json_path: str, output_path: str):
     logging.info(f"Reading extracted fields from '{extracted_json_path}'...")
 
     try:
-        with open(extracted_json_path, 'r') as f:
+        with open(extracted_json_path, 'r', encoding='utf-8') as f:
             extracted_fields = json.load(f)
 
         # This prompt is engineered for modern LLMs to group fields effectively.
