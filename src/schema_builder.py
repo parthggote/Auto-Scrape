@@ -41,20 +41,20 @@ def build_master_schema(grouped_files_dir: str, output_path: str):
             with open(grouped_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-                # In a real implementation, this merging logic would be much more
-                # sophisticated, handling conflicts, standardizing field names,
-                # and performing deep merges.
-                # For this stub, we'll do a simple, naive merge.
-                for category, fields in data.items():
-                    # This is a placeholder for actual category mapping.
-                    if "Applicant" in category:
-                        master_schema["insured_party"].update({f["field_name"]: f for f in fields})
-                    elif "Pet" in category or "Health" in category:
-                        master_schema["policy_info"].update({f["field_name"]: f for f in fields})
-                    elif "Coverage" in category or "Payment" in category:
-                        master_schema["claim_details"].update({f["field_name"]: f for f in fields})
-                    else:
-                        master_schema["domain_specific"].update({f["field_name"]: f for f in fields})
+                # This logic is updated to handle the new ACORD-aware grouping structure.
+                # It maps common ACORD object names to the master schema's sections.
+                for category, group_object in data.items():
+                    field_list = group_object.get("Fields", [])  # Safely get the list of fields
+
+                    # Map new ACORD-style categories to the master schema sections
+                    if category in ["Policy"]:
+                        master_schema["policy_info"].update({f["field_name"]: f for f in field_list})
+                    elif category in ["Insured", "Insured Pet", "Party", "Beneficiary", "Applicant Details"]:
+                        master_schema["insured_party"].update({f["field_name"]: f for f in field_list})
+                    elif category in ["Claim", "Treatment", "Amounts", "Payment", "Coverage", "Health History"]:
+                        master_schema["claim_details"].update({f["field_name"]: f for f in field_list})
+                    else:  # Address, Vehicle, Contact, etc. go here
+                        master_schema["domain_specific"].update({f["field_name"]: f for f in field_list})
 
             master_schema["metadata"]["source_files"].append(grouped_file.name)
 
