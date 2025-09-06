@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 import os
+from typing import Optional
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Qdrant
@@ -74,7 +75,7 @@ class MemoryManager:
                 vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
             )
 
-    def add_new_mapping(self, field_name: str, group_name: str, acord_hint: str):
+    def add_new_mapping(self, field_name: str, group_name: str, acord_hint: Optional[str]):
         """
         Adds a new field-to-group mapping to both the dictionary and the vector store.
         """
