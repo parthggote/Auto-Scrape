@@ -72,10 +72,22 @@ def group_fields(extracted_json_path: str, output_path: str, memory_manager: Mem
 
     try:
         with open(extracted_json_path, 'r', encoding='utf-8') as f:
-            extracted_fields = json.load(f)
+            raw_fields = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Could not read or parse extracted fields from '{extracted_json_path}'. Error: {e}")
         raise
+
+    # --- Normalization Step ---
+    # Ensure all fields are in the expected dict format, handling cases where the input is a list of strings.
+    extracted_fields = []
+    for field in raw_fields:
+        if isinstance(field, str):
+            # If the item is just a string, convert it to the dict structure.
+            extracted_fields.append({"field_name": field, "description": ""})
+        elif isinstance(field, dict) and "field_name" in field:
+            # If it's already a dict with the required key, use it as is.
+            extracted_fields.append(field)
+    logging.info(f"Normalized {len(raw_fields)} raw fields into {len(extracted_fields)} structured fields.")
 
     grouped_results = {}
     fields_to_process_with_llm = []
