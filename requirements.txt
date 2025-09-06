@@ -9,9 +9,13 @@ PyPDF2
 pytesseract
 
 # AI/LLM Integration
-openai
 ollama
 langchain
+langchain-community
+langchain-google-genai
+qdrant-client
+
+# Data Handling & Export
 
 # Data Handling & Export
 pandas

@@ -25,6 +25,7 @@ from src.grouper import group_fields
 from src.schema_builder import build_master_schema
 from src.exporter import export_schema
 from src.utils import setup_logging
+from src.memory_manager import MemoryManager
 
 # --- Directory and Path Constants ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -64,7 +65,15 @@ def main(urls_path: str):
         logging.error(f"Fatal: Could not load or parse the URL config file at '{urls_path}'. Error: {e}")
         return
 
-    # 3. Process each form sequentially
+    # 3. Initialize the Memory Manager once for the entire pipeline run
+    try:
+        memory_manager = MemoryManager()
+    except ValueError as e:
+        logging.error(f"Fatal: Failed to initialize MemoryManager. Error: {e}")
+        logging.error("Please ensure your GOOGLE_API_KEY is set in the .env file.")
+        return
+
+    # 4. Process each form sequentially
     for form_info in forms_to_process:
         try:
             region = form_info.get('region', 'UnknownRegion')
@@ -94,7 +103,7 @@ def main(urls_path: str):
             # --- Stage 4: Field Grouping (AI) ---
             grouped_filepath = GROUPED_DIR / f"{base_filename}.json"
             logging.info(f"[4/4] Grouping fields from '{extracted_filepath.name}'...")
-            group_fields(str(extracted_filepath), str(grouped_filepath))
+            group_fields(str(extracted_filepath), str(grouped_filepath), memory_manager)
 
             logging.info(f"--- Successfully processed {base_filename} ---")
 

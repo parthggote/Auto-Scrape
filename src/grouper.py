@@ -1,70 +1,49 @@
 import json
 import logging
-from .llm_client import llm_client # Use a relative import
+from .llm_client import llm_client
+from .memory_manager import MemoryManager
 
-def group_fields(extracted_json_path: str, output_path: str):
-    """
-    Groups extracted fields into logical categories using an LLM.
+def build_rag_prompt(fields_to_group: list, similar_examples: dict) -> str:
+    """Builds the prompt for the LLM, including RAG context."""
 
-    In this stub implementation, it uses the mock LLM client to generate
-    a predefined, grouped structure.
+    # Format the RAG examples for the prompt
+    rag_context_str = "No similar fields found in memory."
+    if similar_examples:
+        rag_context_str = "To ensure consistency, please use the following examples of previously grouped fields as a reference. Pay close attention to the `group_name` and `acord_object_hint` used for fields similar to the ones below:\n\n"
+        for field_name, examples in similar_examples.items():
+            if examples:
+                rag_context_str += f"For a field like '{field_name}', consider these past groupings:\n"
+                for ex in examples:
+                    rag_context_str += f"- Past Field: '{ex['field_name']}' -> Group: '{ex['group_name']}', Hint: '{ex['acord_object_hint']}'\n"
+                rag_context_str += "\n"
 
-    Args:
-        extracted_json_path (str): The path to the JSON file with extracted fields.
-        output_path (str): The path to save the grouped fields as a new JSON file.
-    """
-    logging.info(f"Reading extracted fields from '{extracted_json_path}'...")
+    # The main prompt structure, now including a placeholder for RAG context
+    prompt = f"""
+You are an expert insurance data architect familiar with ACORD data modeling and object-based standards, with a niche focus on Pet Insurance.
 
-    try:
-        with open(extracted_json_path, 'r', encoding='utf-8') as f:
-            extracted_fields = json.load(f)
+### Task
+Group the following extracted fields into natural, human-readable categories that represent domain objects (e.g., Policy, Insured, Pet, Address, Contact, Claim, Coverage, Treatment, Amounts). Create new, logical group names if the data requires it.
 
-        # This prompt is engineered for modern LLMs to group fields effectively.
-        prompt = f"""
-You are an expert insurance data architect familiar with ACORD data modeling and object-based standards.
-
-Task:
-Group the following extracted fields into natural, human-readable categories that represent domain objects (for example: Policy, Insured, Party, Address, Contact, Claim, Coverage, Vehicle, Treatment, Amounts). Do NOT use a fixed set of categories — create group names that best reflect the data provided.
-
-Design goals and constraints:
-- Prefer ACORD-style object names when they naturally match the fields (e.g., "Policy", "Insured", "Claim", "Address"). Use examples only as guidance; you are free to create appropriate group names if the data suggests a different object (e.g., "Vehicle", "Beneficiary").
+### Design Goals and Constraints
 - Each field must belong to exactly one group.
-- Groups names should be concise (1–3 words).
-- Avoid creating an "Other" group unless truly necessary.
-- Output MUST be valid JSON only. Do not write explanatory text.
+- Group names should be concise (1–3 words).
+- Prefer ACORD-style object names where natural.
+- **CRITICAL**: Preserve the `field_name` exactly as provided in the input.
 
-Additional accuracy guidelines:
-1. **Preserve semantic meaning**: Do not rename field labels; return `field_name` exactly as provided.
-2. **Prioritize ACORD object hierarchy**: Where possible, align groups to ACORD’s known objects (Policy, Party, Insured, Claim, Coverage, Premium, Vehicle, Risk, Payment, Contact, Address, Amounts, Codes).
-3. **Consistency across forms**: If two fields from different forms represent the same logical concept (e.g., "DOB", "Date of Birth"), group them under the same object name (e.g., Party/Insured).
-4. **Disambiguation rule**: If a field could belong to multiple objects, choose the *most specific object* (e.g., “Vehicle VIN” → Vehicle, not Policy).
-5. **Granularity rule**: Do not collapse unrelated fields into one broad group. Keep groups focused (e.g., separate "Address" from "Contact").
-6. **Datatype accuracy**: Always infer and provide `suggested_datatype` realistically:
-   - Dates → `date`
-   - Identifiers (Policy Number, Claim Number) → `string`
-   - Money amounts → `currency`
-   - Boolean (Yes/No, true/false) → `boolean`
-   - Enumerations (State, Gender, Currency) → `code`
-   - Others default → `string`
-7. **Code list hints**: If the field clearly maps to a common ACORD code list, provide a short identifier:
-   - U.S. States → `"StateCode"`
-   - ISO currencies → `"CurrencyCode"`
-   - Gender → `"GenderCode"`
-   - Relationship → `"RelationshipCode"`
-   - Otherwise → `null`
-8. **Group ordering**: Place high-level groups (Policy, Insured, Claim, Coverage) before detail groups (Address, Contact, Payment).
-9. **Traceability**: Include `acord_object_hint` for every field. If uncertain, provide your *best guess* (e.g., "Policy/PolicyNumber").
-10. **No duplication**: Do not repeat the same field under multiple groups.
-11. **Minimal nesting**: Only use one level of groups (no group-inside-group). ACORD alignment can happen via `acord_object_hint`.
+### Memory & Consistency (Soft Memory / RAG)
+{rag_context_str}
 
-For each field, return:
-- `field_name` (original text)
-- `description` (original text)
-- `acord_object_hint` (short ACORD-like object path or null)
-- `suggested_datatype` (see rules above)
-- `suggested_code_list` (short list name or null)
+### Extended Accuracy Guidelines
+1.  **Preserve semantic meaning**: Do not rename field labels; return `field_name` exactly as provided.
+2.  **Prioritize ACORD hierarchy**: Align groups to ACORD’s known objects where possible.
+3.  **Consistency across forms**: Use the provided examples to normalize fields with similar meanings into the same logical group.
+4.  **Disambiguation rule**: Choose the *most specific object* (e.g., "Pet Microchip ID" → PetIdentification, not Policy).
+5.  **Datatype accuracy**: Infer `suggested_datatype` (date, string, currency, boolean, code).
+6.  **Code list hints**: For fields like State or Gender, set `suggested_code_list` to a hint like "StateCode" or "GenderCode"; otherwise, `null`.
+7.  **Traceability**: Provide a best-guess `acord_object_hint` for every field (e.g., `"Policy/PolicyNumber"`).
 
-Output schema (strictly follow this JSON shape):
+### Output Schema (Strict JSON only)
+Provide your response as a single JSON object. Do not include any explanatory text outside the JSON structure.
 {{
   "<GroupName>": {{
     "Fields": [
@@ -74,40 +53,104 @@ Output schema (strictly follow this JSON shape):
         "acord_object_hint": "<optional short hint or null>",
         "suggested_datatype": "<string|integer|number|boolean|date|datetime|currency|code>",
         "suggested_code_list": "<optional code list name or null>"
-      }},
-      ...
+      }}
     ]
-  }},
-  ...
+  }}
 }}
 
-Here are the fields to categorize:
-{json.dumps(extracted_fields, indent=2)}
+### Fields to Categorize
+Group ONLY the fields listed below. Do not invent new fields.
+{json.dumps(fields_to_group, indent=2)}
 """
+    return prompt
 
-        # Call the LLM client for the grouping task
-        logging.info("Calling LLM for field grouping...")
-        llm_response_str = llm_client.call_llm(prompt, task='grouping')
+def group_fields(extracted_json_path: str, output_path: str, memory_manager: MemoryManager):
+    """
+    Groups extracted fields using a hybrid approach of dictionary mapping and RAG-powered LLM calls.
+    """
+    logging.info(f"Starting hybrid field grouping for '{extracted_json_path}'.")
 
-        # The response from the new client is a JSON string.
-        # We can do a quick validation and pretty-print it before saving.
+    try:
+        with open(extracted_json_path, 'r', encoding='utf-8') as f:
+            extracted_fields = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Could not read or parse extracted fields from '{extracted_json_path}'. Error: {e}")
+        raise
+
+    grouped_results = {}
+    fields_to_process_with_llm = []
+    rag_examples = {}
+
+    # Step 1: Dictionary Lookup (Hard Memory)
+    for field in extracted_fields:
+        field_name = field.get("field_name")
+        if not field_name:
+            continue
+
+        if field_name in memory_manager.dictionary:
+            mapping = memory_manager.dictionary[field_name]
+            group_name = mapping["group_name"]
+
+            if group_name not in grouped_results:
+                grouped_results[group_name] = {"Fields": []}
+
+            # Create the field structure for the output
+            grouped_field = {
+                "field_name": field_name,
+                "description": field.get("description"),
+                "acord_object_hint": mapping.get("acord_object_hint"),
+                "suggested_datatype": "string", # Default, can be improved
+                "suggested_code_list": None
+            }
+            grouped_results[group_name]["Fields"].append(grouped_field)
+            logging.info(f"Field '{field_name}' grouped using dictionary to '{group_name}'.")
+        else:
+            fields_to_process_with_llm.append(field)
+
+    # Step 2: RAG + LLM for remaining fields
+    if fields_to_process_with_llm:
+        logging.info(f"{len(fields_to_process_with_llm)} fields not found in dictionary, processing with LLM.")
+
+        # Gather RAG context for all fields that need processing
+        for field in fields_to_process_with_llm:
+            field_name = field["field_name"]
+            similar = memory_manager.find_similar_fields(field_name)
+            if similar:
+                rag_examples[field_name] = similar
+
+        # Build the prompt with all remaining fields and RAG context
+        prompt = build_rag_prompt(fields_to_process_with_llm, rag_examples)
+
         try:
-            parsed_json = json.loads(llm_response_str)
-            with open(output_path, 'w') as f:
-                json.dump(parsed_json, f, indent=2)
-        except json.JSONDecodeError:
-            logging.error("LLM response was not valid JSON. Saving raw response.")
-            with open(output_path, 'w') as f:
-                f.write(llm_response_str)
+            llm_response_str = llm_client.call_llm(prompt, task='grouping')
+            llm_grouped_data = json.loads(llm_response_str)
 
-        logging.info(f"Successfully grouped fields and saved to '{output_path}'.")
+            # Step 3: Merge LLM results and update memory
+            for group_name, group_data in llm_grouped_data.items():
+                if group_name not in grouped_results:
+                    grouped_results[group_name] = {"Fields": []}
 
-    except FileNotFoundError:
-        logging.error(f"Extracted fields JSON not found at '{extracted_json_path}'.")
-        raise
-    except json.JSONDecodeError:
-        logging.error(f"Could not decode JSON from '{extracted_json_path}'.")
-        raise
+                for field in group_data.get("Fields", []):
+                    grouped_results[group_name]["Fields"].append(field)
+
+                    # Update memory with the new mapping
+                    field_name = field.get("field_name")
+                    acord_hint = field.get("acord_object_hint")
+                    if field_name and group_name and acord_hint:
+                        memory_manager.add_new_mapping(field_name, group_name, acord_hint)
+
+            logging.info("Successfully processed remaining fields with LLM and updated memory.")
+
+        except json.JSONDecodeError as e:
+            logging.error(f"LLM response was not valid JSON. Cannot process. Error: {e}. Raw response: {llm_response_str}")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during LLM call or processing. Error: {e}")
+
+    # Save the final combined results
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(grouped_results, f, indent=2)
+        logging.info(f"Successfully saved final grouped fields to '{output_path}'.")
     except Exception as e:
-        logging.error(f"An error occurred during field grouping. Error: {e}")
+        logging.error(f"Failed to save final grouped output. Error: {e}")
         raise
