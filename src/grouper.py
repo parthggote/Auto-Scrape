@@ -80,14 +80,22 @@ def group_fields(extracted_json_path: str, output_path: str, memory_manager: Mem
     # --- Normalization Step ---
     # Ensure all fields are in the expected dict format, handling cases where the input is a list of strings.
     extracted_fields = []
-    for field in raw_fields:
-        if isinstance(field, str):
-            # If the item is just a string, convert it to the dict structure.
+    for i, field in enumerate(raw_fields):
+        if isinstance(field, str) and field:
+            # If the item is a non-empty string, convert it to the dict structure.
             extracted_fields.append({"field_name": field, "description": ""})
-        elif isinstance(field, dict) and "field_name" in field:
+        elif isinstance(field, dict) and field.get("field_name"):
             # If it's already a dict with the required key, use it as is.
             extracted_fields.append(field)
-    logging.info(f"Normalized {len(raw_fields)} raw fields into {len(extracted_fields)} structured fields.")
+        else:
+            # Log a warning for any field that is malformed or empty.
+            logging.warning(
+                f"Skipping malformed or empty field at index {i} in '{extracted_json_path}'. Content: {field}"
+            )
+
+    if len(raw_fields) != len(extracted_fields):
+        logging.warning(f"Dropped {len(raw_fields) - len(extracted_fields)} malformed fields during normalization.")
+    logging.info(f"Normalized {len(raw_fields)} raw fields into {len(extracted_fields)} processable fields.")
 
     grouped_results = {}
     fields_to_process_with_llm = []
