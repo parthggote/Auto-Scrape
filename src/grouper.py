@@ -28,6 +28,8 @@ Group the following extracted fields into natural, human-readable categories tha
 - Each field must belong to exactly one group.
 - Group names should be concise (1–3 words).
 - Prefer ACORD-style object names where natural.
+- **Create logical, domain-specific groups** for concepts like `Pet`, `Treatment`, `Claim`, `PolicyHolder`, `Address`, and `Contact`. Avoid generic groups.
+- **Only use a group named `Uncategorized` as a last resort** if a field truly does not fit anywhere else.
 - **CRITICAL**: Preserve the `field_name` exactly as provided in the input.
 
 ### Memory & Consistency (Soft Memory / RAG)
@@ -165,6 +167,36 @@ def group_fields(extracted_json_path: str, output_path: str, memory_manager: Mem
             logging.error(f"LLM response was not valid JSON. Cannot process. Error: {e}. Raw response: {llm_response_str}")
         except Exception as e:
             logging.error(f"An unexpected error occurred during LLM call or processing. Error: {e}")
+
+    # --- Validation Step ---
+    # Ensure every field from the input is accounted for in the output.
+    grouped_field_names = {
+        f["field_name"]
+        for g in grouped_results.values()
+        for f in g.get("Fields", [])
+    }
+
+    missing_fields_found = 0
+    for field in extracted_fields:
+        fname = field.get("field_name")
+        if fname and fname not in grouped_field_names:
+            missing_fields_found += 1
+            if "Uncategorized" not in grouped_results:
+                grouped_results["Uncategorized"] = {"Fields": []}
+
+            uncategorized_field = {
+                "field_name": fname,
+                "description": field.get("description", ""),
+                "acord_object_hint": None,
+                "suggested_datatype": "string",
+                "suggested_code_list": None
+            }
+
+            grouped_results["Uncategorized"]["Fields"].append(uncategorized_field)
+            memory_manager.add_new_mapping(fname, "Uncategorized", None)
+
+    if missing_fields_found > 0:
+        logging.warning(f"Found and re-added {missing_fields_found} fields that were missed by the LLM.")
 
     # Save the final combined results
     try:
